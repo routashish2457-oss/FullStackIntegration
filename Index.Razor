@@ -1,0 +1,59 @@
+@page "/"
+@inject HttpClient Http
+
+<h2>TaskTrackr</h2>
+
+<input @bind="newTitle" placeholder="New task title" />
+<button @onclick="AddTask">Add</button>
+
+<ul>
+    @foreach (var t in tasks)
+    {
+        <li>
+            <input type="checkbox" checked="@t.Completed" @onchange="(e)=>Toggle(t)" />
+            @t.Title
+            <button @onclick="() => Delete(t.Id)">Delete</button>
+        </li>
+    }
+</ul>
+
+@code {
+    class TaskItem
+    {
+        public int Id { get; set; }
+        public string Title { get; set; } = "";
+        public bool Completed { get; set; }
+    }
+
+    List<TaskItem> tasks = new();
+    string newTitle = "";
+
+    protected override async Task OnInitializedAsync()
+    {
+        tasks = await Http.GetFromJsonAsync<List<TaskItem>>("api/tasks") ?? new();
+    }
+
+    async Task AddTask()
+    {
+        if (string.IsNullOrWhiteSpace(newTitle)) return;
+        var created = await Http.PostAsJsonAsync("api/tasks", new TaskItem { Title = newTitle, Completed = false });
+        var item = await created.Content.ReadFromJsonAsync<TaskItem>();
+        if (item != null) tasks.Add(item);
+        newTitle = "";
+    }
+
+    async Task Toggle(TaskItem t)
+    {
+        t.Completed = !t.Completed;
+        await Http.PutAsJsonAsync($"api/tasks/{t.Id}", t);
+    }
+
+    async Task Delete(int id)
+    {
+        var resp = await Http.DeleteAsync($"api/tasks/{id}");
+        if (resp.IsSuccessStatusCode)
+        {
+            tasks.RemoveAll(x => x.Id == id);
+        }
+    }
+}
